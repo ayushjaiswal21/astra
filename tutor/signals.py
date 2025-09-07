@@ -40,9 +40,15 @@ def update_choice_question_updated_at(sender, instance, **kwargs):
 @receiver(post_save, sender=UserProgress)
 def handle_lesson_completion(sender, instance, created, **kwargs):
     """Handle actions when a lesson is marked as completed."""
-    if instance.completed and instance.lesson.quiz:
-        # If the lesson has a quiz, we might want to do something special
-        pass
+    if instance.completed:
+        try:
+            # Check if the lesson has a quiz
+            if instance.lesson.quiz:
+                # If the lesson has a quiz, we might want to do something special
+                pass
+        except Quiz.DoesNotExist:
+            # Lesson does not have a quiz, so do nothing related to quiz
+            pass
 
 @receiver(post_save, sender=UserQuizAttempt)
 def handle_quiz_attempt(sender, instance, created, **kwargs):

@@ -9,94 +9,98 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
-from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
+from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt, UserProfile
 
-
+# --- Configuration ---
 genai.configure(api_key=settings.GEMINI_API_KEY)
+
+# New view to render the dedicated "Create Course" page
+@login_required
+def create_course_page(request):
+    return render(request, 'tutor/create_course.html')
 
 @csrf_exempt
 @require_http_methods(["POST"])
 @login_required
 def create_course(request):
+    """
+    Handles course creation, now including personalization data.
+    """
     try:
         data = json.loads(request.body)
         topic = data.get('topic', 'Unnamed Topic')
+        personalization = data.get('personalization', {})
+        
+        # --- Save personalization data to the user's profile ---
+        UserProfile.objects.update_or_create(
+            user=request.user,
+            defaults={
+                'role': personalization.get('role'),
+                'age_group': personalization.get('age_group'),
+                'education_level': personalization.get('education_level')
+            }
+        )
+
         warning_message = None
         ai_response_json = None
 
         try:
             model = genai.GenerativeModel('gemini-1.5-pro-latest')
+            # --- MODIFIED PROMPT to include personalization ---
             prompt = f'''
-            You are an expert curriculum designer. Generate a comprehensive course outline for the topic "{topic}".
-            The output must be a JSON object with the following structure:
+            You are an expert curriculum designer. Based on the following parameters, generate a comprehensive course outline in a structured JSON format.
+            Topic: {topic}
+            Target Audience Role: {personalization.get('role', 'Any')}
+            Age Group: {personalization.get('age_group', 'Any')}
+            Education Level: {personalization.get('education_level', 'Any')}
+
+            The JSON output must include:
             - "course_title": A compelling title for the course.
             - "course_description": A brief, one-paragraph description of the course.
-            - "modules": A list of 5-7 module objects. Each module object must have:
-              - "title": The title of the module.
-              - "objective": A one-sentence objective for the module.
-              - "lessons": A list of lesson titles (strings).
+            - "modules": A list of 5-7 distinct modules, each with a "title" and "objective".
+            - For each module, a list of lesson "titles".
             '''
             response = model.generate_content(prompt)
             cleaned_response = response.text.strip().replace('`', '').replace('json', '', 1)
             ai_response_json = json.loads(cleaned_response)
 
         except Exception as e:
-            warning_message = f"API not working ({type(e).__name__}). A dummy course has been created for demonstration."
+            # --- Dummy course fallback logic remains the same ---
+            warning_message = f"API not working ({type(e).__name__}). A dummy course has been created."
             ai_response_json = {
                 "course_title": f"Dummy Course: {topic}",
-                "course_description": "This is a placeholder course created because the AI generation service is currently unavailable.",
+                "course_description": "This is a placeholder course because the AI service is unavailable.",
                 "modules": [
-                    {
-                        "title": "Module 1: Getting Started (Dummy)",
-                        "objective": "This is a sample module objective.",
-                        "lessons": ["1.1: Dummy Lesson A", "1.2: Dummy Lesson B"]
-                    },
-                    {
-                        "title": "Module 2: Advanced Topics (Dummy)",
-                        "objective": "This is another sample module objective.",
-                        "lessons": ["2.1: Placeholder Content", "2.2: More Placeholder Content"]
-                    }
+                    {"title": "Module 1: Getting Started (Dummy)", "objective": "Sample objective.", "lessons": ["1.1: Dummy Lesson A", "1.2: Dummy Lesson B"]},
+                    {"title": "Module 2: Advanced Topics (Dummy)", "objective": "Another sample objective.", "lessons": ["2.1: Placeholder A", "2.2: Placeholder B"]}
                 ]
             }
 
+        # --- Database population logic remains the same ---
         with transaction.atomic():
             course = Course.objects.create(
                 title=ai_response_json['course_title'],
                 description=ai_response_json['course_description'],
                 created_by=request.user
             )
-            
             lessons_to_generate = []
             for module_order, module_data in enumerate(ai_response_json['modules']):
-                module = Module.objects.create(
-                    course=course,
-                    title=module_data['title'],
-                    description=module_data.get('objective', ''),
-                    order=module_order
-                )
+                module = Module.objects.create(course=course, title=module_data['title'], description=module_data.get('objective', ''), order=module_order)
                 for lesson_order, lesson_title in enumerate(module_data['lessons']):
-                    lesson = Lesson.objects.create(
-                        module=module,
-                        title=lesson_title,
-                        content="",
-                        order=lesson_order
-                    )
+                    lesson = Lesson.objects.create(module=module, title=lesson_title, content="", order=lesson_order)
                     lessons_to_generate.append(lesson.id)
 
         if not warning_message:
             for lesson_id in lessons_to_generate:
                 generate_lesson_content.delay(lesson_id)
 
-        return JsonResponse({
-            'success': True, 
-            'course_id': course.id,
-            'warning': warning_message
-        })
+        return JsonResponse({'success': True, 'course_id': course.id, 'warning': warning_message})
 
     except Exception as e:
         return JsonResponse({'error': f'A critical error occurred: {str(e)}'}, status=500)
 
 
+# --- other views (course_list, course_detail, etc.) remain the same ---
 @login_required
 def course_list(request):
     courses = Course.objects.all()
