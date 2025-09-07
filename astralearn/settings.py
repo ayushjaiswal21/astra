@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'channels',
     'tutor',
+    'django_celery_results',
 ]
 
 MIDDLEWARE = [
@@ -102,15 +103,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Channels layer
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
-        },
-    },
-}
+# Channels layer (Requires Redis)
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }
 
 # Gemini API Key (for production, use environment variables)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key')
@@ -118,3 +119,16 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key')
 # Authentication Settings
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
+
+# Celery Configuration (Using Filesystem Broker and Django DB Results)
+CELERY_BROKER_URL = 'filesystem://'
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'data_folder_in': 'C:/Users/dell/Desktop/astra/celery_broker/out',
+    'data_folder_out': 'C:/Users/dell/Desktop/astra/celery_broker/out',
+    'data_folder_processed': 'C:/Users/dell/Desktop/astra/celery_broker/processed',
+}
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
