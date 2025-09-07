@@ -1,0 +1,179 @@
+{% extends 'tutor/base.html' %}
+
+{% block title %}My Courses - AstraLearn{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+            <h1 class="text-2xl font-semibold text-gray-900">My Courses</h1>
+            <p class="mt-2 text-sm text-gray-700">Continue learning or start a new course.</p>
+        </div>
+        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+            <button type="button" id="new-course-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <i class="fas fa-plus mr-2"></i> New Course
+            </button>
+        </div>
+    </div>
+
+    <!-- Course Grid -->
+    <div class="mt-8 grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {% for course in courses %}
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-indigo-100 p-3 rounded-lg">
+                        <i class="fas fa-graduation-cap text-indigo-600 h-6 w-6"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">
+                                {{ course.modules.count }} Modules
+                            </dt>
+                            <dd class="flex items-baseline">
+                                <div class="text-2xl font-semibold text-gray-900">
+                                    <a href="{% url 'tutor:course_detail' course.id %}" class="hover:text-indigo-600">
+                                        {{ course.title }}
+                                    </a>
+                                </div>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-5 py-3">
+                <div class="text-sm">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center text-sm text-gray-500">
+                            <i class="fas fa-user-edit mr-1.5 text-gray-400"></i>
+                            {{ course.created_by.get_full_name|default:course.created_by.username }}
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            In Progress
+                        </span>
+                    </div>
+                    <div class="mt-2">
+                        <div class="w-full bg-gray-200 rounded-full h-1.5">
+                            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: 45%"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">45% Complete</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-3 text-center py-12">
+            <i class="fas fa-book-open text-4xl text-gray-300 mb-4"></i>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No courses</h3>
+            <p class="mt-1 text-sm text-gray-500">Get started by creating a new course.</p>
+            <div class="mt-6">
+                <button type="button" id="new-course-btn-empty" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-plus mr-2 -ml-1"></i> New Course
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Create Course Modal -->
+<div id="course-modal" class="fixed z-10 inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+      <form id="create-course-form">
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Create a New Course</h3>
+              <div class="mt-2">
+                <p class="text-sm text-gray-500">What do you want to learn about?</p>
+                <input type="text" name="topic" id="course-topic" class="mt-2 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md" placeholder="e.g., 'Programming with Python'">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button type="submit" id="submit-course-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+            Create Course
+          </button>
+          <button type="button" id="cancel-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('course-modal');
+    const newCourseBtn = document.getElementById('new-course-btn');
+    const newCourseBtnEmpty = document.getElementById('new-course-btn-empty');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const form = document.getElementById('create-course-form');
+    const submitBtn = document.getElementById('submit-course-btn');
+
+    function openModal() {
+        modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+    }
+
+    if (newCourseBtn) {
+        newCourseBtn.addEventListener('click', openModal);
+    }
+    if (newCourseBtnEmpty) {
+        newCourseBtnEmpty.addEventListener('click', openModal);
+    }
+    cancelBtn.addEventListener('click', closeModal);
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const topic = document.getElementById('course-topic').value;
+        if (!topic) {
+            alert('Please enter a topic.');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Generating...';
+
+        fetch("{% url 'tutor:create_course' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                topic: topic,
+                personalization: {} // Add personalization data here if needed
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = `/courses/${data.course_id}/`;
+            } else {
+                alert('Error creating course: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An unexpected error occurred.');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create Course';
+            closeModal();
+        });
+    });
+});
+</script>
+{% endblock %}
