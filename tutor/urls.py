@@ -12,6 +12,7 @@ urlpatterns = [
 
     # API endpoints
     path('api/courses/create/', views.create_course, name='create_course'),
+    path('api/courses/<int:course_id>/delete/', views.delete_course, name='delete_course'),
     path('api/ai_assistant/', views.ai_assistant, name='ai_assistant'),
     # path('api/courses/', views.get_all_courses, name='get_all_courses'),
     # path('api/courses/<int:course_id>/', views.get_course_details, name='get_course_details'),

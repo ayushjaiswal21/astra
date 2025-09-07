@@ -1,5 +1,7 @@
 import json
 import random
+import google.generativeai as genai
+from django.conf import settings
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -8,131 +10,84 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
 
-# Simulated AI response for demo purposes
-def get_ai_response(message, context=None):
-    """Simulate an AI response. In production, this would call the Gemini API."""
-    responses = [
-        "That's a great question! Let me explain...",
-        "I understand you're asking about this topic. Here's what you should know...",
-        "Based on the current lesson, the answer is...",
-        "Let me help clarify that concept for you...",
-        "That's an interesting point. Consider this perspective..."
-    ]
-    return random.choice(responses)
+# Configure the Gemini API client
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 @csrf_exempt
 @require_http_methods(["POST"])
 @login_required
 def create_course(request):
     """
-    Handles course creation from a user-provided topic and personalization.
-    In a real scenario, this would call an LLM to generate the course structure.
+    Handles course creation. Calls the Gemini API to generate the course structure,
+    but not the content itself, which will be generated on-demand.
     """
     try:
         data = json.loads(request.body)
         topic = data.get('topic')
-        # Personalization data (role, age, education) is captured but not used in this simulation
-        personalization = data.get('personalization', {})
-
         if not topic:
             return JsonResponse({'error': 'Topic is required'}, status=400)
 
-        # --- AI Prompt Simulation ---
-        # In a real implementation, you would construct a detailed prompt for the LLM
-        # and parse its JSON response. Here, we simulate that response.
-        simulated_ai_json_response = {
-            "course_title": f"Introduction to {topic}",
-            "course_description": f"A comprehensive beginner's guide to {topic}.",
-            "modules": [
-                {
-                    "title": f"Module 1: The Basics of {topic}",
-                    "objective": f"Understand the fundamental concepts of {topic}.",
-                    "lessons": [
-                        {
-                            "title": "Lesson 1.1: What is {topic}?",
-                            "content": "This is the detailed content for the first lesson.",
-                            "quiz_question": "What is the core idea of {topic}?",
-                            "options": ["Incorrect A", "Incorrect B", "The core idea"],
-                            "answer": "The core idea"
-                        },
-                        {
-                            "title": "Lesson 1.2: Key Principles",
-                            "content": "This lesson covers the key principles.",
-                            "quiz_question": "What is a key principle?",
-                            "options": ["Not this one", "This is the key principle", "Also not this one"],
-                            "answer": "This is the key principle"
-                        }
-                    ]
-                },
-                {
-                    "title": "Module 2: Advanced Concepts",
-                    "objective": "Explore advanced concepts and applications.",
-                    "lessons": [
-                        {
-                            "title": "Lesson 2.1: Advanced Topic A",
-                            "content": "Content for advanced topic A.",
-                            "quiz_question": "What is advanced topic A?",
-                            "options": ["Advanced A", "Not A", "Not B"],
-                            "answer": "Advanced A"
-                        }
-                    ]
-                }
-            ]
-        }
+        # 1. --- AI Call to Generate Course Structure ---
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        prompt = f"""
+        You are an expert curriculum designer. Generate a comprehensive course outline for the topic "{topic}".
+        The output must be a JSON object with the following structure:
+        - "course_title": A compelling title for the course.
+        - "course_description": A brief, one-paragraph description of the course.
+        - "modules": A list of 5-7 module objects. Each module object must have:
+          - "title": The title of the module.
+          - "objective": A one-sentence objective for the module.
+          - "lessons": A list of lesson titles (strings).
 
-        # --- Database Population ---
+        Example:
+        {{
+          "course_title": "Introduction to Python Programming",
+          "course_description": "This course offers a comprehensive introduction to the Python programming language, covering fundamental concepts and practical applications.",
+          "modules": [
+            {{
+              "title": "Module 1: Python Basics",
+              "objective": "Understand the fundamental syntax and data types in Python.",
+              "lessons": ["1.1: What is Python?", "1.2: Variables and Data Types", "1.3: Your First Python Program"]
+            }}
+          ]
+        }}
+        """
+        response = model.generate_content(prompt)
+        
+        # Clean up the response and load it as JSON
+        cleaned_response = response.text.strip().replace('`', '').replace('json', '', 1)
+        ai_response_json = json.loads(cleaned_response)
+
+        # 2. --- Database Population ---
         with transaction.atomic():
-            # Create the Course
             course = Course.objects.create(
-                title=simulated_ai_json_response['course_title'],
-                description=simulated_ai_json_response['course_description'],
+                title=ai_response_json['course_title'],
+                description=ai_response_json['course_description'],
                 created_by=request.user
             )
 
-            # Create Modules, Lessons, and Quizzes
-            for module_order, module_data in enumerate(simulated_ai_json_response['modules']):
+            for module_order, module_data in enumerate(ai_response_json['modules']):
                 module = Module.objects.create(
                     course=course,
                     title=module_data['title'],
                     description=module_data.get('objective', ''),
                     order=module_order
                 )
-
-                for lesson_order, lesson_data in enumerate(module_data['lessons']):
-                    lesson = Lesson.objects.create(
+                for lesson_order, lesson_title in enumerate(module_data['lessons']):
+                    Lesson.objects.create(
                         module=module,
-                        title=lesson_data['title'],
-                        content=lesson_data['content'],
+                        title=lesson_title,
+                        content="",  # Content will be generated on-demand
                         order=lesson_order
                     )
-
-                    # Create the Quiz for the lesson
-                    quiz = Quiz.objects.create(
-                        lesson=lesson,
-                        title=f"Quiz for {lesson.title}"
-                    )
-                    
-                    question = Question.objects.create(
-                        quiz=quiz,
-                        question_text=lesson_data['quiz_question'],
-                        order=0
-                    )
-
-                    # Add choices to the question
-                    correct_answer = lesson_data['answer']
-                    for choice_text in lesson_data['options']:
-                        Choice.objects.create(
-                            question=question,
-                            choice_text=choice_text,
-                            is_correct=(choice_text == correct_answer)
-                        )
 
         return JsonResponse({'success': True, 'course_id': course.id})
 
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return JsonResponse({'error': 'Failed to decode AI response. Please try again.'}, status=500)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': f'An unexpected error occurred: {str(e)}'}, status=500)
+
 
 @login_required
 def course_list(request):
@@ -151,21 +106,63 @@ def course_detail(request, course_id):
 
 @login_required
 def lesson_detail(request, course_id, module_id, lesson_id):
-    """Display a single lesson with its content."""
+    """
+    Display a single lesson. If the lesson content is empty, generate it using the AI.
+    """
     lesson = get_object_or_404(
-        Lesson,
-        id=lesson_id,
-        module_id=module_id,
-        module__course_id=course_id
+        Lesson, id=lesson_id, module_id=module_id, module__course_id=course_id
     )
-    
-    # Get or create user progress
-    progress, created = UserProgress.objects.get_or_create(
-        user=request.user,
-        lesson=lesson
-    )
-    
-    # Get next and previous lessons for navigation
+
+    # --- On-Demand Content Generation ---
+    if not lesson.content:
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            prompt = f"""
+You are an expert educator. Generate the content for a lesson titled \"{lesson.title}\" within the module \"{lesson.module.title}\".
+            The module's objective is: {lesson.module.description}
+            
+            The output must be a JSON object with the following structure:
+            - \"lesson_content\": The full lesson content in Markdown format. It should be detailed, clear, and easy to understand.
+            - \"quiz_question\": A multiple-choice question to test the core concept of the lesson.
+            - \"options\": A list of 4 strings representing the choices for the multiple-choice question.
+            - \"answer\": The correct choice from the options list.
+
+            Example:
+            {{
+              \"lesson_content\": \"Variables are fundamental to programming...\",
+              \"quiz_question\": \"What is a variable in Python?\",
+              \"options\": [\"A constant value\", \"A container for storing data\", \"A type of function\", \"A reserved keyword\"],
+              \"answer\": \"A container for storing data\"
+            }}
+            """
+            response = model.generate_content(prompt)
+            cleaned_response = response.text.strip().replace('`', '').replace('json', '', 1)
+            ai_response_json = json.loads(cleaned_response)
+
+            with transaction.atomic():
+                # Update lesson with generated content
+                lesson.content = ai_response_json['lesson_content']
+                lesson.save()
+
+                # Create the quiz for the lesson
+                quiz = Quiz.objects.create(lesson=lesson, title=f"Quiz for {lesson.title}")
+                question = Question.objects.create(
+                    quiz=quiz,
+                    question_text=ai_response_json['quiz_question'],
+                    order=0
+                )
+                for choice_text in ai_response_json['options']:
+                    Choice.objects.create(
+                        question=question,
+                        choice_text=choice_text,
+                        is_correct=(choice_text == ai_response_json['answer'])
+                    )
+        except Exception as e:
+            # In case of AI failure, show a message instead of crashing
+            lesson.content = f"Failed to generate lesson content. Error: {str(e)}"
+
+    # --- Standard View Logic ---
+    progress, created = UserProgress.objects.get_or_create(user=request.user, lesson=lesson)
     all_lessons = list(Lesson.objects.filter(module__course_id=course_id).order_by('module__order', 'order'))
     current_index = all_lessons.index(lesson)
     next_lesson = all_lessons[current_index + 1] if current_index + 1 < len(all_lessons) else None
@@ -180,6 +177,7 @@ def lesson_detail(request, course_id, module_id, lesson_id):
         'prev_lesson': prev_lesson,
         'has_quiz': hasattr(lesson, 'quiz')
     })
+
 
 @login_required
 def quiz_detail(request, quiz_id):
@@ -262,29 +260,60 @@ def submit_quiz(request, quiz_id):
         }, status=400)
 
 @login_required
+@require_http_methods(["POST"])
 def ai_assistant(request):
-    """Handle AI assistant chat messages."""
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            message = data.get('message', '').strip()
-            context = data.get('context', {})
-            
-            if not message:
-                return JsonResponse({'error': 'Message is required'}, status=400)
-            
-            # Get AI response (in production, this would call the Gemini API)
-            response = get_ai_response(message, context)
-            
-            return JsonResponse({
-                'response': response,
-                'context': context
-            })
-            
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
+    """Handle AI assistant chat messages using the Gemini API."""
+    try:
+        data = json.loads(request.body)
+        message = data.get('message', '').strip()
+        lesson_id = data.get('context', {}).get('lesson_id')
+
+        if not message or not lesson_id:
+            return JsonResponse({'error': 'Message and lesson_id are required'}, status=400)
+
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+
+        # For optimization, we could summarize the content first or use embeddings.
+        # For now, we use the full content to ensure the highest quality answers.
+        context_text = lesson.content
+
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        prompt = f"""
+        Context: You are an AI tutor explaining a lesson. The lesson content is as follows:
+        ---
+        {context_text}
+        ---
+        Based ONLY on the context above, answer the user's question.
+        User Question: {message}
+        """
+        
+        response = model.generate_content(prompt)
+
+        return JsonResponse({
+            'response': response.text,
+            'context': data.get('context', {})
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def delete_course(request, course_id):
+    """Deletes a course after verifying the user is the owner."""
+    try:
+        course = get_object_or_404(Course, id=course_id)
+        # Security check: only the user who created the course can delete it.
+        if course.created_by != request.user:
+            return JsonResponse({'error': 'You are not authorized to delete this course.'}, status=403)
+        
+        course.delete()
+        return JsonResponse({'success': True, 'message': 'Course deleted successfully.'})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 @require_http_methods(["POST"])
