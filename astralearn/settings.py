@@ -24,7 +24,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'channels',
     'tutor',
     'django_celery_results',
 ]
@@ -123,7 +122,7 @@ LOGOUT_REDIRECT_URL = '/'
 # Celery Configuration (Using Filesystem Broker and Django DB Results)
 CELERY_BROKER_URL = 'filesystem://'
 CELERY_BROKER_TRANSPORT_OPTIONS = {
-    'data_folder_in': 'C:/Users/dell/Desktop/astra/celery_broker/out',
+    'data_folder_in': 'C:/Users/dell/Desktop/astra/celery_broker/in',
     'data_folder_out': 'C:/Users/dell/Desktop/astra/celery_broker/out',
     'data_folder_processed': 'C:/Users/dell/Desktop/astra/celery_broker/processed',
 }

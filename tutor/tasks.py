@@ -14,6 +14,7 @@ def generate_lesson_content(lesson_id):
     """
     Background task to generate content and a quiz for a single lesson.
     """
+    lesson = None
     try:
         lesson = Lesson.objects.get(id=lesson_id)
         if lesson.content:
@@ -55,7 +56,7 @@ def generate_lesson_content(lesson_id):
     except Lesson.DoesNotExist:
         return f"Error: Lesson with ID {lesson_id} not found."
     except Exception as e:
-        lesson = Lesson.objects.get(id=lesson_id)
-        lesson.content = f"### Error Generating Content\n\nWe encountered an issue while preparing this lesson: `{str(e)}`\n\nPlease try refreshing later or contact support."
-        lesson.save()
+        if lesson:
+            lesson.content = f"### Error Generating Content\n\nWe encountered an issue while preparing this lesson: `{str(e)}`\n\nPlease try refreshing later or contact support."
+            lesson.save()
         return f"Failed to generate content for lesson {lesson_id}: {str(e)}"
