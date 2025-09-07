@@ -158,6 +158,10 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
+            if (data.warning) {
+                alert('Warning:\n' + data.warning);
+            }
+
             if (data.success) {
                 window.location.href = `/courses/${data.course_id}/`;
             } else {

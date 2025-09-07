@@ -20,24 +20,44 @@ genai.configure(api_key=settings.GEMINI_API_KEY)
 def create_course(request):
     try:
         data = json.loads(request.body)
-        topic = data.get('topic')
-        if not topic:
-            return JsonResponse({'error': 'Topic is required'}, status=400)
+        topic = data.get('topic', 'Unnamed Topic')
+        warning_message = None
+        ai_response_json = None
 
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
-        prompt = f'''
-        You are an expert curriculum designer. Generate a comprehensive course outline for the topic "{topic}".
-        The output must be a JSON object with the following structure:
-        - "course_title": A compelling title for the course.
-        - "course_description": A brief, one-paragraph description of the course.
-        - "modules": A list of 5-7 module objects. Each module object must have:
-          - "title": The title of the module.
-          - "objective": A one-sentence objective for the module.
-          - "lessons": A list of lesson titles (strings).
-        '''
-        response = model.generate_content(prompt)
-        cleaned_response = response.text.strip().replace('`', '').replace('json', '', 1)
-        ai_response_json = json.loads(cleaned_response)
+        try:
+            model = genai.GenerativeModel('gemini-1.5-pro-latest')
+            prompt = f'''
+            You are an expert curriculum designer. Generate a comprehensive course outline for the topic "{topic}".
+            The output must be a JSON object with the following structure:
+            - "course_title": A compelling title for the course.
+            - "course_description": A brief, one-paragraph description of the course.
+            - "modules": A list of 5-7 module objects. Each module object must have:
+              - "title": The title of the module.
+              - "objective": A one-sentence objective for the module.
+              - "lessons": A list of lesson titles (strings).
+            '''
+            response = model.generate_content(prompt)
+            cleaned_response = response.text.strip().replace('`', '').replace('json', '', 1)
+            ai_response_json = json.loads(cleaned_response)
+
+        except Exception as e:
+            warning_message = f"API not working ({type(e).__name__}). A dummy course has been created for demonstration."
+            ai_response_json = {
+                "course_title": f"Dummy Course: {topic}",
+                "course_description": "This is a placeholder course created because the AI generation service is currently unavailable.",
+                "modules": [
+                    {
+                        "title": "Module 1: Getting Started (Dummy)",
+                        "objective": "This is a sample module objective.",
+                        "lessons": ["1.1: Dummy Lesson A", "1.2: Dummy Lesson B"]
+                    },
+                    {
+                        "title": "Module 2: Advanced Topics (Dummy)",
+                        "objective": "This is another sample module objective.",
+                        "lessons": ["2.1: Placeholder Content", "2.2: More Placeholder Content"]
+                    }
+                ]
+            }
 
         with transaction.atomic():
             course = Course.objects.create(
@@ -63,15 +83,18 @@ def create_course(request):
                     )
                     lessons_to_generate.append(lesson.id)
 
-        for lesson_id in lessons_to_generate:
-            generate_lesson_content.delay(lesson_id)
+        if not warning_message:
+            for lesson_id in lessons_to_generate:
+                generate_lesson_content.delay(lesson_id)
 
-        return JsonResponse({'success': True, 'course_id': course.id})
+        return JsonResponse({
+            'success': True, 
+            'course_id': course.id,
+            'warning': warning_message
+        })
 
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Failed to decode AI response. Please try again.'}, status=500)
     except Exception as e:
-        return JsonResponse({'error': f'An unexpected error occurred: {str(e)}'}, status=500)
+        return JsonResponse({'error': f'A critical error occurred: {str(e)}'}, status=500)
 
 
 @login_required
