@@ -3,122 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}AstraLearn - AI Tutor{% endblock %}</title>
-    <!-- Favicon -->
+    <title>{% block title %}AstraLearn{% endblock %}</title>
     <link rel="icon" href="https://www.google.com/s2/favicons?domain=tailwindcss.com&sz=32" type="image/x-icon">
-    <link rel="shortcut icon" href="https://www.google.com/s2/favicons?domain=tailwindcss.com&sz=32" type="image/x-icon">
-    <link rel="apple-touch-icon" href="https://www.google.com/s2/favicons?domain=tailwindcss.com&sz=180">
-    <meta name="theme-color" content="#3b82f6">
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <style>
-        .sidebar {
-            transition: all 0.3s;
-        }
         .sidebar-link {
-            @apply flex items-center px-4 py-3 text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors;
+            @apply block px-4 py-2 text-lg text-gray-700 rounded-md hover:bg-gray-100;
         }
         .sidebar-link.active {
-            @apply bg-blue-50 text-blue-600;
-        }
-        .sidebar-link i {
-            @apply w-6 text-center mr-3;
+            @apply font-bold text-black;
         }
     </style>
 </head>
-<body class="h-full bg-gray-50">
+<body class="h-full bg-white">
     <div class="flex h-full">
-        <!-- Sidebar -->
-        <div class="w-64 bg-white border-r border-gray-200 flex flex-col sidebar">
-            <div class="p-6">
-                <h1 class="text-2xl font-bold text-blue-600">AstraLearn</h1>
+        <div class="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
+            <div class="p-4 mb-4">
+                <h1 class="text-3xl font-bold text-blue-600">AstraLearn</h1>
             </div>
-            
-            <!-- User Profile -->
-            <div class="px-4 py-3 border-t border-b border-gray-100">
-                <div class="flex items-center">
-                    <img src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff" 
-                         alt="User" 
-                         class="w-10 h-10 rounded-full">
-                    <div class="ml-3">
-                        <p class="font-medium text-gray-900">User</p>
-                        <p class="text-sm text-gray-500">Free Plan</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Navigation -->
-            <nav class="flex-1 px-3 py-4 space-y-1">
-                <a href="#" class="sidebar-link active">
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
-                </a>
-                <a href="#" class="sidebar-link">
-                    <i class="fas fa-book"></i>
-                    <span>Courses</span>
-                </a>
-                <a href="#" class="sidebar-link">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Progress</span>
-                </a>
-                <a href="#" class="sidebar-link">
-                    <i class="fas fa-cog"></i>
-                    <span>Settings</span>
-                </a>
-            </nav>
-            
-            <!-- Help Section -->
-            <div class="p-4 mt-auto">
-                <div class="bg-blue-50 p-3 rounded-lg">
-                    <h3 class="font-medium text-sm text-blue-800">Need help?</h3>
-                    <p class="text-xs text-blue-600 mt-1">Check our documentation or contact support</p>
-                    <button class="mt-2 text-xs font-medium text-blue-600 hover:underline">Get Help</button>
-                </div>
+            <div class="border rounded-lg p-2">
+                <nav class="space-y-1">
+                    <a href="{% url 'tutor:course_list' %}" class="sidebar-link {% if request.resolver_match.url_name == 'course_list' or request.resolver_match.url_name == 'course_detail' %}active{% endif %}">
+                        Current Course
+                    </a>
+                    <a href="{% url 'tutor:create_course_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'create_course_page' %}active{% endif %}">
+                        Create Course
+                    </a>
+                </nav>
             </div>
         </div>
 
-        <!-- Main Content -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- Top Navigation -->
-            <header class="bg-white border-b border-gray-200">
-                <div class="flex items-center justify-between px-6 py-4">
-                    <div class="flex-1 max-w-2xl">
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-search text-gray-400"></i>
-                            </div>
-                            <input type="text" 
-                                   class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                                   placeholder="Search courses, lessons, or topics...">
-                        </div>
-                    </div>
-                    <div class="ml-4 flex items-center">
-                        <button class="p-2 rounded-full text-gray-500 hover:bg-gray-100">
-                            <i class="fas fa-bell"></i>
-                        </button>
-                        <div class="ml-4 relative">
-                            <button class="flex items-center space-x-2 focus:outline-none">
-                                <img src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff" 
-                                     alt="User" 
-                                     class="w-8 h-8 rounded-full">
-                                <span class="text-sm font-medium text-gray-700">User</span>
-                                <i class="fas fa-chevron-down text-xs text-gray-500"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Page Content -->
-            <main class="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <main class="flex-1 overflow-y-auto bg-gray-50">
                 {% block content %}{% endblock %}
             </main>
         </div>

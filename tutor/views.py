@@ -1,10 +1,9 @@
 import json
 import random
+import requests
 from .tasks import generate_lesson_content
 from django.conf import settings
-import google.generativeai as genai
 from django.shortcuts import render, get_object_or_404, redirect
-# Login decorators removed as authentication is not required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -12,7 +11,23 @@ from django.db import transaction
 from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
 
 # --- Configuration ---
-genai.configure(api_key=settings.GEMINI_API_KEY)
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "phi3:latest"
+
+def generate_with_ollama(prompt):
+    print(f"Sending prompt to Ollama: {prompt}")
+    try:
+        response = requests.post(OLLAMA_URL, json={
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False
+        }, headers={"Content-Type": "application/json"}, timeout=120)
+        response.raise_for_status()
+        print(f"Received response from Ollama: {response.text}")
+        return response.json()['response']
+    except requests.exceptions.RequestException as e:
+        print(f"Error from Ollama: {e}")
+        return f"Error from Ollama: {e}"
 
 # New view to render the dedicated "Create Course" page
 def create_course_page(request):
@@ -28,15 +43,11 @@ def create_course(request):
         data = json.loads(request.body)
         topic = data.get('topic', 'Unnamed Topic')
         personalization = data.get('personalization', {})
-        
-        # Personalization data is no longer saved to user profiles
 
         warning_message = None
         ai_response_json = None
 
         try:
-            model = genai.GenerativeModel('gemini-1.5-pro-latest')
-            # --- MODIFIED PROMPT to include personalization ---
             prompt = f'''
             You are an expert curriculum designer. Based on the following parameters, generate a comprehensive course outline in a structured JSON format.
             Topic: {topic}
@@ -50,12 +61,11 @@ def create_course(request):
             - "modules": A list of 5-7 distinct modules, each with a "title" and "objective".
             - For each module, a list of lesson "titles".
             '''
-            response = model.generate_content(prompt)
-            cleaned_response = response.text.strip().replace('`', '').replace('json', '', 1)
+            response_text = generate_with_ollama(prompt)
+            cleaned_response = response_text.strip().replace('`', '').replace('json', '', 1)
             ai_response_json = json.loads(cleaned_response)
 
         except Exception as e:
-            # --- Dummy course fallback logic remains the same ---
             warning_message = f"API not working ({type(e).__name__}). A dummy course has been created."
             ai_response_json = {
                 "course_title": f"Dummy Course: {topic}",
@@ -66,7 +76,6 @@ def create_course(request):
                 ]
             }
 
-        # --- Database population logic remains the same ---
         with transaction.atomic():
             course = Course.objects.create(
                 title=ai_response_json['course_title'],
@@ -89,9 +98,7 @@ def create_course(request):
         return JsonResponse({'error': f'A critical error occurred: {str(e)}'}, status=500)
 
 
-# --- other views (course_list, course_detail, etc.) remain the same ---
 def course_list(request):
-    # Get all courses
     courses = Course.objects.all().order_by('-created_at')
     return render(request, 'tutor/course_list.html', {'courses': courses})
 
@@ -142,7 +149,6 @@ def lesson_detail(request, course_id, module_id, lesson_id):
         'prev_lesson': prev_lesson,
         'has_quiz': hasattr(lesson, 'quiz')
     })
-
 
 def quiz_detail(request, quiz_id):
     quiz = get_object_or_404(Quiz, id=quiz_id)
@@ -230,7 +236,6 @@ def ai_assistant(request):
 
         context_text = lesson.content
 
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         prompt = f'''
         Context: You are an AI tutor explaining a lesson. The lesson content is as follows:
         ---
@@ -240,10 +245,10 @@ def ai_assistant(request):
         User Question: {message}
         '''
         
-        response = model.generate_content(prompt)
+        response_text = generate_with_ollama(prompt)
 
         return JsonResponse({
-            'response': response.text,
+            'response': response_text,
             'context': data.get('context', {})
         })
         

@@ -1,13 +1,12 @@
 # AstraLearn - AI-Powered Learning Platform
 
-AstraLearn is an AI-powered tutoring platform built with Django and Django Channels that provides an interactive learning experience with AI assistance, quizzes, and spaced repetition.
+AstraLearn is an AI-powered tutoring platform built with Django that provides an interactive learning experience with AI assistance and quizzes.
 
 ## Features
 
 - Interactive course content with modules and lessons
-- Real-time AI tutor assistant
+- Real-time AI tutor assistant (powered by Ollama)
 - Quizzes with automatic scoring
-- Spaced repetition for better retention
 - Progress tracking
 - Responsive design for all devices
 
@@ -15,7 +14,7 @@ AstraLearn is an AI-powered tutoring platform built with Django and Django Chann
 
 - Python 3.8+
 - pip (Python package installer)
-- Redis (for WebSocket support)
+- Ollama (for local AI assistant)
 
 ## Installation
 
@@ -56,28 +55,19 @@ AstraLearn is an AI-powered tutoring platform built with Django and Django Chann
    ```
    DEBUG=True
    SECRET_KEY=your-secret-key-here
-   GEMINI_API_KEY=your-gemini-api-key
    ```
 
 ## Running the Development Server
 
-1. **Start Redis**
-   Make sure Redis is running on your system. On most systems, you can start it with:
+1. **Start Ollama**
+   Make sure your Ollama server is running. You can start it with:
    ```bash
-   # On Linux/macOS
-   redis-server
-   
-   # On Windows (if installed via WSL or similar)
-   redis-server
+   ollama serve
    ```
 
 2. **Start the development server**
    ```bash
-   # In one terminal, start the ASGI server
-   daphne -p 8000 astralearn.asgi:application
-   
-   # In another terminal, start the worker
-   python manage.py runworker
+   python manage.py runserver
    ```
 
 3. **Access the application**
@@ -102,10 +92,7 @@ astralearn/
 │   ├── __init__.py
 │   ├── admin.py          # Admin interface configuration
 │   ├── apps.py           # App configuration
-│   ├── consumers.py      # WebSocket consumers
 │   ├── models.py         # Database models
-│   ├── routing.py        # WebSocket routing
-│   ├── signals.py        # Signal handlers
 │   ├── urls.py          # URL routing
 │   └── views.py         # View functions
 ├── .env                  # Environment variables
@@ -119,7 +106,6 @@ astralearn/
 
 - `DEBUG`: Set to `False` in production
 - `SECRET_KEY`: A secret key for cryptographic signing
-- `GEMINI_API_KEY`: API key for Google's Gemini AI (for AI tutor functionality)
 
 ### Database
 
@@ -130,10 +116,9 @@ By default, the application uses SQLite. For production, consider using PostgreS
 For production deployment, consider using:
 
 1. **Web Server**: Nginx or Apache
-2. **ASGI Server**: Daphne or Uvicorn
+2. **ASGI Server**: Gunicorn or Uvicorn
 3. **Process Manager**: Systemd, Supervisor, or Circus
 4. **Database**: PostgreSQL or MySQL
-5. **Caching**: Redis or Memcached
 
 ## Contributing
 
@@ -150,6 +135,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - Built with [Django](https://www.djangoproject.com/)
-- Real-time features powered by [Django Channels](https://channels.readthedocs.io/)
+- AI features powered by [Ollama](https://ollama.com/)
 - Frontend built with [Tailwind CSS](https://tailwindcss.com/)
 - Icons by [Font Awesome](https://fontawesome.com/)
