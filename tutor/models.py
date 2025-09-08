@@ -1,25 +1,12 @@
 from django.db import models
-from django.contrib.auth.models import User
 from django.utils import timezone
-
-# New model to store user profile and personalization data
-class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    role = models.CharField(max_length=20, blank=True, null=True)
-    age_group = models.CharField(max_length=20, blank=True, null=True)
-    education_level = models.CharField(max_length=50, blank=True, null=True)
-
-    def __str__(self):
-        return self.user.username
-
-# --- Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt models remain the same ---
 
 class Course(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_courses')
+    # Removed user dependency
     
     def __str__(self):
         return self.title
@@ -79,29 +66,26 @@ class Choice(models.Model):
         return self.choice_text
 
 class UserProgress(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='progress')
+    # Using session key instead of user
+    session_key = models.CharField(max_length=40, db_index=True)
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='user_progress')
     completed = models.BooleanField(default=False)
     last_reviewed = models.DateTimeField(auto_now=True)
-    next_review = models.DateTimeField(null=True, blank=True)
-    ease_factor = models.FloatField(default=2.5)  # For spaced repetition
-    review_interval = models.IntegerField(default=1)  # In days
     
     class Meta:
         verbose_name_plural = 'User progress'
-        unique_together = ('user', 'lesson')
+        unique_together = ('session_key', 'lesson')
     
     def __str__(self):
-        return f"{self.user.username} - {self.lesson.title}"
+        return f"{self.session_key} - {self.lesson.title}"
 
 class UserQuizAttempt(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_attempts')
+    # Using session key instead of user
+    session_key = models.CharField(max_length=40, default='')
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='attempts')
     score = models.FloatField()
     completed_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-completed_at']
+    passed = models.BooleanField(default=False)
     
     def __str__(self):
-        return f"{self.user.username}'s attempt on {self.quiz.title}"
+        return f"{self.session_key}'s attempt on {self.quiz.title}"

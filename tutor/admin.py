@@ -33,7 +33,7 @@ class ModuleInline(admin.StackedInline):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ('title', 'created_by', 'created_at', 'updated_at')
+    list_display = ('title', 'created_at', 'updated_at')
     list_filter = ('created_at', 'updated_at')
     search_fields = ('title', 'description')
     inlines = [ModuleInline]
@@ -76,12 +76,12 @@ class ChoiceAdmin(admin.ModelAdmin):
 
 @admin.register(UserProgress)
 class UserProgressAdmin(admin.ModelAdmin):
-    list_display = ('user', 'lesson', 'completed', 'last_reviewed', 'next_review')
+    list_display = ('session_key', 'lesson', 'completed', 'last_reviewed')
     list_filter = ('completed', 'lesson__module__course')
-    search_fields = ('user__username', 'lesson__title')
+    search_fields = ('session_key', 'lesson__title')
 
 @admin.register(UserQuizAttempt)
 class UserQuizAttemptAdmin(admin.ModelAdmin):
-    list_display = ('user', 'quiz', 'score', 'completed_at')
+    list_display = ('session_key', 'quiz', 'score', 'completed_at')
     list_filter = ('quiz__lesson__module__course', 'quiz')
-    search_fields = ('user__username', 'quiz__title')
+    search_fields = ('session_key', 'quiz__title')

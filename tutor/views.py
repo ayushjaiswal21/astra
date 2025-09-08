@@ -4,24 +4,22 @@ from .tasks import generate_lesson_content
 from django.conf import settings
 import google.generativeai as genai
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
+# Login decorators removed as authentication is not required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
-from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt, UserProfile
+from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
 
 # --- Configuration ---
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
 # New view to render the dedicated "Create Course" page
-@login_required
 def create_course_page(request):
     return render(request, 'tutor/create_course.html')
 
 @csrf_exempt
 @require_http_methods(["POST"])
-@login_required
 def create_course(request):
     """
     Handles course creation, now including personalization data.
@@ -31,15 +29,7 @@ def create_course(request):
         topic = data.get('topic', 'Unnamed Topic')
         personalization = data.get('personalization', {})
         
-        # --- Save personalization data to the user's profile ---
-        UserProfile.objects.update_or_create(
-            user=request.user,
-            defaults={
-                'role': personalization.get('role'),
-                'age_group': personalization.get('age_group'),
-                'education_level': personalization.get('education_level')
-            }
-        )
+        # Personalization data is no longer saved to user profiles
 
         warning_message = None
         ai_response_json = None
@@ -80,8 +70,7 @@ def create_course(request):
         with transaction.atomic():
             course = Course.objects.create(
                 title=ai_response_json['course_title'],
-                description=ai_response_json['course_description'],
-                created_by=request.user
+                description=ai_response_json['course_description']
             )
             lessons_to_generate = []
             for module_order, module_data in enumerate(ai_response_json['modules']):
@@ -101,12 +90,11 @@ def create_course(request):
 
 
 # --- other views (course_list, course_detail, etc.) remain the same ---
-@login_required
 def course_list(request):
-    courses = Course.objects.all()
+    # Get all courses
+    courses = Course.objects.all().order_by('-created_at')
     return render(request, 'tutor/course_list.html', {'courses': courses})
 
-@login_required
 def course_detail(request, course_id):
     course = get_object_or_404(Course, id=course_id)
     return render(request, 'tutor/course_detail.html', {
@@ -114,7 +102,6 @@ def course_detail(request, course_id):
         'modules': course.modules.all().order_by('order'),
     })
 
-@login_required
 def lesson_detail(request, course_id, module_id, lesson_id):
     lesson = get_object_or_404(
         Lesson, id=lesson_id, module_id=module_id, module__course_id=course_id
@@ -137,7 +124,10 @@ def lesson_detail(request, course_id, module_id, lesson_id):
         </div>
         '''
 
-    progress, created = UserProgress.objects.get_or_create(user=request.user, lesson=lesson)
+    progress, created = UserProgress.objects.get_or_create(
+        session_key=request.session.session_key or 'anonymous',
+        lesson=lesson
+    )
     all_lessons = list(Lesson.objects.filter(module__course_id=course_id).order_by('module__order', 'order'))
     current_index = all_lessons.index(lesson)
     next_lesson = all_lessons[current_index + 1] if current_index + 1 < len(all_lessons) else None
@@ -154,7 +144,6 @@ def lesson_detail(request, course_id, module_id, lesson_id):
     })
 
 
-@login_required
 def quiz_detail(request, quiz_id):
     quiz = get_object_or_404(Quiz, id=quiz_id)
     questions = quiz.questions.all().order_by('order')
@@ -179,7 +168,6 @@ def quiz_detail(request, quiz_id):
         'lesson': quiz.lesson
     })
 
-@login_required
 @require_http_methods(["POST"])
 def submit_quiz(request, quiz_id):
     try:
@@ -202,14 +190,14 @@ def submit_quiz(request, quiz_id):
         score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
         
         UserQuizAttempt.objects.create(
-            user=request.user,
+            session_key=request.session.session_key or 'anonymous',
             quiz=quiz,
             score=score
         )
         
         if score >= 70:
             UserProgress.objects.update_or_create(
-                user=request.user,
+                session_key=request.session.session_key or 'anonymous',
                 lesson=quiz.lesson,
                 defaults={'completed': True}
             )
@@ -228,7 +216,6 @@ def submit_quiz(request, quiz_id):
             'error': str(e)
         }, status=400)
 
-@login_required
 @require_http_methods(["POST"])
 def ai_assistant(request):
     try:
@@ -265,26 +252,21 @@ def ai_assistant(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-@login_required
 @require_http_methods(["POST"])
 def delete_course(request, course_id):
     try:
         course = get_object_or_404(Course, id=course_id)
-        if course.created_by != request.user:
-            return JsonResponse({'error': 'You are not authorized to delete this course.'}, status=403)
-        
         course.delete()
         return JsonResponse({'success': True, 'message': 'Course deleted successfully.'})
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-@login_required
 @require_http_methods(["POST"])
 def mark_lesson_complete(request, lesson_id):
     lesson = get_object_or_404(Lesson, id=lesson_id)
     progress, created = UserProgress.objects.get_or_create(
-        user=request.user,
+        session_key=request.session.session_key or 'anonymous',
         lesson=lesson
     )
     progress.completed = True
