@@ -1,33 +1,15 @@
 import json
 import random
-import requests
-from .tasks import generate_lesson_content
-from django.conf import settings
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
+
 from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
 
-# --- Configuration ---
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "phi3:3.8b-mini-4k-instruct-q4_0"
+from .tasks import generate_lesson_content, generate_modules_and_lessons
 
-def generate_with_ollama(prompt):
-    print(f"Sending prompt to Ollama: {prompt}")
-    try:
-        response = requests.post(OLLAMA_URL, json={
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False
-        }, headers={"Content-Type": "application/json"}, timeout=120)
-        response.raise_for_status()
-        print(f"Received response from Ollama: {response.text}")
-        return response.json()['response']
-    except requests.exceptions.RequestException as e:
-        print(f"Error from Ollama: {e}")
-        return f"Error from Ollama: {e}"
 
 # New view to render the dedicated "Create Course" page
 def create_course_page(request):
@@ -37,65 +19,31 @@ def create_course_page(request):
 @require_http_methods(["POST"])
 def create_course(request):
     """
-    Handles course creation, now including personalization data.
+    Handles the initial course creation request. It creates a placeholder course
+    and dispatches a background task to generate the actual content.
     """
     try:
         data = json.loads(request.body)
         topic = data.get('topic', 'Unnamed Topic')
-        personalization = data.get('personalization', {})
 
-        warning_message = None
-        ai_response_json = None
+        # --- Step 1: Create a placeholder Course object ---
+        # The background task will update the title and description later.
+        course = Course.objects.create(
+            title=f"New Course on {topic}", 
+            description="Course content is being generated in the background. Please check back in a few moments."
+        )
 
-        try:
-            prompt = f'''
-            You are an expert curriculum designer. Based on the following parameters, generate a comprehensive course outline in a structured JSON format.
-            Topic: {topic}
-            Target Audience Role: {personalization.get('role', 'Any')}
-            Age Group: {personalization.get('age_group', 'Any')}
-            Education Level: {personalization.get('education_level', 'Any')}
+        # --- Step 2: Dispatch the background task to do all the work ---
+        generate_modules_and_lessons.delay(course.id, topic)
 
-            The JSON output must include:
-            - "course_title": A compelling title for the course.
-            - "course_description": A brief, one-paragraph description of the course.
-            - "modules": A list of 5-7 distinct modules, each with a "title" and "objective".
-            - For each module, a list of lesson "titles".
-            '''
-            response_text = generate_with_ollama(prompt)
-            cleaned_response = response_text.strip().replace('`', '').replace('json', '', 1)
-            ai_response_json = json.loads(cleaned_response)
-
-        except Exception as e:
-            warning_message = f"API not working ({type(e).__name__}). A dummy course has been created."
-            ai_response_json = {
-                "course_title": f"Dummy Course: {topic}",
-                "course_description": "This is a placeholder course because the AI service is unavailable.",
-                "modules": [
-                    {"title": "Module 1: Getting Started (Dummy)", "objective": "Sample objective.", "lessons": ["1.1: Dummy Lesson A", "1.2: Dummy Lesson B"]},
-                    {"title": "Module 2: Advanced Topics (Dummy)", "objective": "Another sample objective.", "lessons": ["2.1: Placeholder A", "2.2: Placeholder B"]}
-                ]
-            }
-
-        with transaction.atomic():
-            course = Course.objects.create(
-                title=ai_response_json['course_title'],
-                description=ai_response_json['course_description']
-            )
-            lessons_to_generate = []
-            for module_order, module_data in enumerate(ai_response_json['modules']):
-                module = Module.objects.create(course=course, title=module_data['title'], description=module_data.get('objective', ''), order=module_order)
-                for lesson_order, lesson_title in enumerate(module_data['lessons']):
-                    lesson = Lesson.objects.create(module=module, title=lesson_title, content="", order=lesson_order)
-                    lessons_to_generate.append(lesson.id)
-
-        if not warning_message:
-            for lesson_id in lessons_to_generate:
-                generate_lesson_content.delay(lesson_id)
-
-        return JsonResponse({'success': True, 'course_id': course.id, 'warning': warning_message})
+        # --- Step 3: Return an immediate response ---
+        return JsonResponse({'success': True, 'course_id': course.id})
 
     except Exception as e:
+        # Catches critical errors
         return JsonResponse({'error': f'A critical error occurred: {str(e)}'}, status=500)
+
+
 
 
 def course_list(request):

@@ -1,13 +1,152 @@
 import json
+import re
+import requests
 import google.generativeai as genai
 from celery import shared_task
 from django.conf import settings
 from django.db import transaction
-from .models import Lesson, Quiz, Question, Choice
+from .models import Course, Module, Lesson, Quiz, Question, Choice
+
+# --- OLLAMA AI Configuration ---
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "phi3:3.8b-mini-4k-instruct-q4_0"
+
+def call_ollama(prompt):
+    """
+    Sends a prompt to the Ollama API, cleans the response, and parses it as JSON.
+    Raises exceptions on errors.
+    """
+    print(f"Sending prompt to Ollama: {prompt}")
+    try:
+        response = requests.post(OLLAMA_URL, json={
+            "model": OLLAMA_MODEL,
+            "prompt": f"{prompt}\n\nPlease ensure the output is only a single, valid JSON object as requested, with no additional text or markdown.",
+            "stream": False,
+            "options": {"num_predict": 2048}
+        }, headers={"Content-Type": "application/json"}, timeout=60) # 60 second timeout
+        
+        response.raise_for_status() # Raises HTTPError for bad responses (4xx or 5xx) 
+        
+        response_text = response.json().get('response', '')
+        print(f"Received response from Ollama: {response_text}")
+
+        cleaned_text = clean_llm_response(response_text)
+        if not cleaned_text:
+            raise ValueError("Received an empty response from Ollama.")
+
+        return json.loads(cleaned_text)
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error calling Ollama: {e}")
+        # Re-raise as a more generic exception to be caught by the view or task
+        raise ValueError(f"AI service request failed: {e}")
+    except json.JSONDecodeError as e:
+        print(f"Failed to decode JSON from Ollama: {e}")
+        raise ValueError(f"AI service returned invalid JSON: {e}")
+
+def clean_llm_response(response_text):
+    """
+    Cleans the raw text response from the LLM by surgically extracting the main JSON object.
+    It finds the first '{' and the last '}' to isolate the JSON data.
+    """
+    try:
+        # Find the first opening curly brace
+        start_index = response_text.index('{')
+        # Find the last closing curly brace
+        end_index = response_text.rindex('}') + 1
+        # Extract the substring that looks like a JSON object
+        json_str = response_text[start_index:end_index]
+        return json_str.strip()
+    except ValueError:
+        # If '{' or '}' are not found, the response is definitely not our JSON
+        print(f"Warning: Could not find a JSON object in the response: {response_text}")
+        return ""
+
+# --- Celery Tasks ---
 
 # It's good practice to configure the client within the task
 # to ensure it's initialized in the worker process.
 genai.configure(api_key=settings.GEMINI_API_KEY)
+
+@shared_task
+def generate_modules_and_lessons(course_id, topic):
+    """
+    Background task to generate the full course structure.
+    """
+    course = None
+    try:
+        course = Course.objects.get(id=course_id)
+
+        # --- Step 1: Generate Course Title and Description ---
+        prompt_title_desc = f"""
+        Generate a course title and a brief description for a course on the topic: '{topic}'.
+        Provide the output as a single JSON object with two keys: "course_title" and "course_description".
+        For example:
+        {{
+            "course_title": "Introduction to Python",
+            "course_description": "A beginner-friendly course on Python."
+        }}
+        """
+        title_desc_json = call_ollama(prompt_title_desc)
+        
+        # Update the placeholder course with the real title and description
+        course.title = title_desc_json.get('course_title', course.title)
+        course.description = title_desc_json.get('course_description', course.description)
+        course.save()
+
+        # --- Step 2: Generate Module Titles ---
+        prompt_modules = f"""
+        For a course titled '{course.title}', generate a list of 5 to 7 relevant module titles.
+        Provide the output as a single JSON object with one key: "module_titles", which contains a list of strings.
+        For example:
+        {{
+            "module_titles": ["Getting Started", "Data Structures", "Control Flow"]
+        }}
+        """
+        module_titles_json = call_ollama(prompt_modules)
+        module_titles = module_titles_json.get('module_titles', [])
+
+        lessons_to_generate_async = []
+
+        # --- Step 3 & 4: Loop through modules to get lessons and create everything ---
+        for i, module_title in enumerate(module_titles):
+            prompt_lessons = f"""
+            For a module named '{module_title}' in a course about '{topic}', generate a concise learning objective and a list of 3-5 lesson titles.
+            Provide the output as a single JSON object with two keys: "objective" and "lesson_titles".
+            For example:
+            {{
+                "objective": "Understand the basics of Python syntax.",
+                "lesson_titles": ["Variables and Data Types", "Your First Python Script"]
+            }}
+            """
+            lessons_json = call_ollama(prompt_lessons)
+            
+            with transaction.atomic():
+                module = Module.objects.create(
+                    course=course,
+                    title=module_title,
+                    description=lessons_json.get('objective', ''),
+                    order=i
+                )
+
+                for j, lesson_title in enumerate(lessons_json.get('lesson_titles', [])):
+                    lesson = Lesson.objects.create(module=module, title=lesson_title, content="", order=j)
+                    lessons_to_generate_async.append(lesson.id)
+        
+        # --- Step 5: Trigger async tasks for lesson content generation ---
+        for lesson_id in lessons_to_generate_async:
+            generate_lesson_content.delay(lesson_id)
+
+        return f"Successfully generated modules and lessons for course {course_id}."
+
+    except Exception as e:
+        # If something goes wrong, update the course description with an error
+        if course:
+            course.description = f"### Error Generating Course Content\n\nWe encountered an issue while building this course: `{str(e)}`\n\nThis is often a temporary issue with the AI service. Please try deleting this course and creating it again in a few moments."
+            course.save()
+        return f"Failed to generate modules and lessons for course {course_id}: {str(e)}"
+
+
 
 @shared_task
 def generate_lesson_content(lesson_id):

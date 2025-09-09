@@ -1,140 +1,86 @@
-# AstraLearn - AI-Powered Learning Platform
+# Astralearn - AI-Powered Course Generator
 
-AstraLearn is an AI-powered tutoring platform built with Django that provides an interactive learning experience with AI assistance and quizzes.
+Astralearn is a dynamic web application built with Django that leverages AI to automatically generate entire courses, complete with modules and lessons, based on a user-provided topic.
 
-## Features
+This project uses a dual-AI strategy:
+1.  A local Ollama model (`phi3:mini`) is used for the high-level course structure (titles, modules, lesson titles).
+2.  The Google Generative AI API (Gemini) is used to generate the detailed content for each individual lesson.
 
-- Interactive course content with modules and lessons
-- Real-time AI tutor assistant (powered by Ollama)
-- Quizzes with automatic scoring
-- Progress tracking
-- Responsive design for all devices
+Asynchronous tasks are managed by Celery with a Redis broker to ensure the user experience is fast and non-blocking while the AI works in the background.
 
-## Prerequisites
+## Key Features
 
-- Python 3.8+
-- pip (Python package installer)
-- Ollama (for local AI assistant)
+- **AI-Powered Course Creation**: Enter any topic and get a full course structure in minutes.
+- **Asynchronous Generation**: Uses Celery and Redis to generate course content in the background without tying up the web server.
+- **Dual-LLM Strategy**: Utilizes both local and cloud-based LLMs for different tasks.
+- **User-Friendly Interface**: Simple and intuitive UI for creating and viewing courses.
 
-## Installation
+## Technology Stack
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd astralearn
-   ```
+- **Backend**: Django 5.2
+- **Asynchronous Tasks**: Celery 5.5
+- **Message Broker**: Redis
+- **Database**: PostgreSQL (for production), SQLite (for local development)
+- **AI (Structure)**: Ollama (running the `phi3:3.8b-mini-4k-instruct-q4_0` model)
+- **AI (Content)**: Google Generative AI (Gemini API)
+- **Deployment**: Gunicorn, Whitenoise
 
-2. **Create and activate a virtual environment**
-   ```bash
-   # On Windows
-   python -m venv venv
-   venv\Scripts\activate
-   
-   # On macOS/Linux
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+---
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Local Development Setup
 
-4. **Set up the database**
-   ```bash
-   python manage.py migrate
-   ```
+To run this project locally, follow these steps:
 
-5. **Create a superuser (admin) account**
-   ```bash
-   python manage.py createsuperuser
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repo-url>
+    cd astralearn
+    ```
 
-6. **Set up environment variables**
-   Create a `.env` file in the project root with the following content:
-   ```
-   DEBUG=True
-   SECRET_KEY=your-secret-key-here
-   ```
+2.  **Create a virtual environment and install dependencies:**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+    pip install -r requirements.txt
+    ```
 
-## Running the Development Server
+3.  **Set up Environment Variables:**
+    - Create a file named `.env` in the project root.
+    - Add the necessary environment variables (see section below).
 
-1. **Start Ollama**
-   Make sure your Ollama server is running. You can start it with:
-   ```bash
-   ollama serve
-   ```
+4.  **Run Database Migrations:**
+    ```bash
+    python manage.py migrate
+    ```
 
-2. **Start the development server**
-   ```bash
-   python manage.py runserver
-   ```
+5.  **Ensure Services are Running:**
+    - Make sure your local **Redis** server is running.
+    - Make sure your local **Ollama** server is running.
 
-3. **Access the application**
-   Open your browser and go to:
-   ```
-   http://localhost:8000/
-   ```
+6.  **Start the Celery Worker:**
+    - In a new terminal, activate the virtual environment and run:
+    ```bash
+    # On Windows, use the -P solo flag
+    celery -A astralearn worker -l info -P solo 
+    ```
 
-   Access the admin interface at:
-   ```
-   http://localhost:8000/admin/
-   ```
+7.  **Start the Django Development Server:**
+    - In another new terminal, activate the virtual environment and run:
+    ```bash
+    python manage.py runserver
+    ```
 
-## Project Structure
+## Environment Variables
+
+Create a `.env` file in the root directory and add the following:
 
 ```
-astralearn/
-├── astralearn/            # Django project settings
-├── tutor/                 # Main app
-│   ├── migrations/        # Database migrations
-│   ├── templates/         # HTML templates
-│   ├── __init__.py
-│   ├── admin.py          # Admin interface configuration
-│   ├── apps.py           # App configuration
-│   ├── models.py         # Database models
-│   ├── urls.py          # URL routing
-│   └── views.py         # View functions
-├── .env                  # Environment variables
-├── manage.py            # Django management script
-└── requirements.txt     # Python dependencies
+# A strong, random string for Django's security features.
+SECRET_KEY='your_django_secret_key_goes_here'
+
+# Set to False in production
+DEBUG=True
+
+# Your secret API key from Google AI Studio
+GEMINI_API_KEY='your_new_secret_gemini_api_key_goes_here'
 ```
-
-## Configuration
-
-### Environment Variables
-
-- `DEBUG`: Set to `False` in production
-- `SECRET_KEY`: A secret key for cryptographic signing
-
-### Database
-
-By default, the application uses SQLite. For production, consider using PostgreSQL or MySQL by updating the `DATABASES` setting in `settings.py`.
-
-## Deployment
-
-For production deployment, consider using:
-
-1. **Web Server**: Nginx or Apache
-2. **ASGI Server**: Gunicorn or Uvicorn
-3. **Process Manager**: Systemd, Supervisor, or Circus
-4. **Database**: PostgreSQL or MySQL
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Built with [Django](https://www.djangoproject.com/)
-- AI features powered by [Ollama](https://ollama.com/)
-- Frontend built with [Tailwind CSS](https://tailwindcss.com/)
-- Icons by [Font Awesome](https://fontawesome.com/)
