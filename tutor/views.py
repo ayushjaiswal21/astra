@@ -12,7 +12,7 @@ from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress
 
 # --- Configuration ---
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "phi3:latest"
+OLLAMA_MODEL = "phi3:3.8b-mini-4k-instruct-q4_0"
 
 def generate_with_ollama(prompt):
     print(f"Sending prompt to Ollama: {prompt}")
