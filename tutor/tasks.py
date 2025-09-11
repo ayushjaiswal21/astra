@@ -23,7 +23,7 @@ def call_ollama(prompt):
             "prompt": f"{prompt}\n\nPlease ensure the output is only a single, valid JSON object as requested, with no additional text or markdown.",
             "stream": False,
             "options": {"num_predict": 2048}
-        }, headers={"Content-Type": "application/json"}, timeout=60) # 60 second timeout
+        }, headers={"Content-Type": "application/json"}, timeout=120) # 120 second timeout
         
         response.raise_for_status() # Raises HTTPError for bad responses (4xx or 5xx) 
         
@@ -46,21 +46,27 @@ def call_ollama(prompt):
 
 def clean_llm_response(response_text):
     """
-    Cleans the raw text response from the LLM by surgically extracting the main JSON object.
-    It finds the first '{' and the last '}' to isolate the JSON data.
+    Cleans the raw text response from the LLM by finding all possible JSON objects
+    and returning the first one that is valid.
     """
-    try:
-        # Find the first opening curly brace
-        start_index = response_text.index('{')
-        # Find the last closing curly brace
-        end_index = response_text.rindex('}') + 1
-        # Extract the substring that looks like a JSON object
-        json_str = response_text[start_index:end_index]
-        return json_str.strip()
-    except ValueError:
-        # If '{' or '}' are not found, the response is definitely not our JSON
-        print(f"Warning: Could not find a JSON object in the response: {response_text}")
+    # Regex to find all substrings that look like JSON objects
+    json_pattern = re.compile(r'\{.*?\}', re.DOTALL)
+    potential_matches = json_pattern.findall(response_text)
+
+    if not potential_matches:
+        print(f"Warning: Could not find any potential JSON objects in the response: {response_text}")
         return ""
+
+    for match in potential_matches:
+        try:
+            # Try to parse the found substring as JSON
+            json.loads(match)
+            return match.strip()  # Return the first valid JSON object found
+        except json.JSONDecodeError:
+            continue  # Not a valid JSON object, try the next one
+
+    print(f"Warning: Found potential JSON but failed to parse any of them: {response_text}")
+    return ""
 
 # --- Celery Tasks ---
 
