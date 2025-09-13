@@ -1,4 +1,5 @@
 {% extends 'tutor/base.html' %}
+{% load markdown_extras %}
 
 {% block title %}{{ lesson.title }} - AstraLearn{% endblock %}
 
@@ -19,7 +20,7 @@
         
         <div class="mt-6">
             <div id="tab-content-panel" class="prose max-w-none tab-panel">
-                {{ lesson.content|safe|linebreaks }}
+                {{ lesson.content|convert_markdown|safe }}
             </div>
             <div id="tab-simplify-panel" class="prose max-w-none tab-panel hidden">
                 <p>Simplified content is being generated...</p>
