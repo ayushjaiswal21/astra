@@ -13,7 +13,13 @@
             <nav class="-mb-px flex space-x-8" id="lesson-tabs">
                 <button data-tab="content" class="tab-button py-4 px-1 border-b-2 border-indigo-500 font-medium text-indigo-600">Content</button>
                 <button data-tab="simplify" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700">Simplify</button>
-                <button data-tab="quiz" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700">Quiz</button>
+                
+                {% if has_quiz %}
+                    <a href="{% url 'tutor:quiz_detail' lesson.quiz.id %}" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700">Quiz</a>
+                {% else %}
+                    <button data-tab="quiz" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 cursor-not-allowed opacity-50">Quiz</button>
+                {% endif %}
+
                 <button data-tab="example" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700">Example</button>
             </nav>
         </div>
@@ -26,10 +32,10 @@
                 <p>Simplified content is being generated...</p>
             </div>
             <div id="tab-quiz-panel" class="prose max-w-none tab-panel hidden">
-                <p>The quiz for this lesson will appear here.</p>
+                <p>No quiz available for this lesson.</p>
             </div>
             <div id="tab-example-panel" class="prose max-w-none tab-panel hidden">
-                <p>Examples related to the lesson will appear here.</p>
+                <p>A relevant example is being generated...</p>
             </div>
         </div>
         
@@ -94,6 +100,8 @@
 
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tabsContainer = document.getElementById('lesson-tabs');
@@ -102,12 +110,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     tabsContainer.addEventListener('click', (e) => {
         const clickedTab = e.target.closest('.tab-button');
-        if (!clickedTab) return;
+        if (!clickedTab || clickedTab.tagName === 'A') return; // Ignore clicks on actual links like the Quiz tab
+
+        e.preventDefault();
 
         // Deactivate all tabs and panels
-        tabButtons.forEach(button => {
-            button.classList.remove('border-indigo-500', 'text-indigo-600');
-            button.classList.add('border-transparent', 'text-gray-500');
+        tabsContainer.querySelectorAll('a, button').forEach(button => {
+            if (button.tagName === 'BUTTON') {
+                button.classList.remove('border-indigo-500', 'text-indigo-600');
+                button.classList.add('border-transparent', 'text-gray-500');
+            }
         });
         tabPanels.forEach(panel => {
             panel.classList.add('hidden');
@@ -121,10 +133,41 @@ document.addEventListener('DOMContentLoaded', function() {
         const activePanel = document.getElementById(`tab-${tabName}-panel`);
         if (activePanel) {
             activePanel.classList.remove('hidden');
+
+            // Fetch content if it's for simplify or example and not already loaded
+            if (tabName === 'simplify' && !activePanel.dataset.loaded) {
+                fetchAndDisplay(
+                    `/api/lesson/{{ lesson.id }}/simplify/`,
+                    activePanel
+                );
+            } else if (tabName === 'example' && !activePanel.dataset.loaded) {
+                fetchAndDisplay(
+                    `/api/lesson/{{ lesson.id }}/example/`,
+                    activePanel
+                );
+            }
         }
     });
 
-    // AI Assistant logic can be added here if you want a pop-up chat
+    async function fetchAndDisplay(url, panelElement) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            
+            if (data.content) {
+                panelElement.innerHTML = marked.parse(data.content); // Use marked.js to render markdown
+            } else {
+                panelElement.innerHTML = `<p class="text-red-500">${data.error || 'Failed to load content.'}</p>`;
+            }
+            panelElement.dataset.loaded = 'true'; // Mark as loaded
+        } catch (error) {
+            console.error('Fetch error:', error);
+            panelElement.innerHTML = `<p class="text-red-500">An error occurred while fetching the content. Please try again later.</p>`;
+        }
+    }
 });
 </script>
 {% endblock %}

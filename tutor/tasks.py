@@ -9,7 +9,7 @@ from .models import Course, Module, Lesson, Quiz, Question, Choice
 
 # --- OLLAMA AI Configuration ---
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "phi3:3.8b-mini-4k-instruct-q4_0"
+OLLAMA_MODEL = "phi3:mini" # Changed from phi3:3.8b-mini-4k-instruct-q4_0 for faster inference
 
 def call_ollama(prompt):
     """

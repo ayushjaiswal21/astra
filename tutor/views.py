@@ -5,10 +5,14 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
+from django.conf import settings
+import google.generativeai as genai
 
 from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
 
 from .tasks import generate_lesson_content, generate_modules_and_lessons
+
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 
 # New view to render the dedicated "Create Course" page
@@ -42,7 +46,6 @@ def create_course(request):
     except Exception as e:
         # Catches critical errors
         return JsonResponse({'error': f'A critical error occurred: {str(e)}'}, status=500)
-
 
 
 
@@ -122,6 +125,7 @@ def quiz_detail(request, quiz_id):
         'lesson': quiz.lesson
     })
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def submit_quiz(request, quiz_id):
     try:
@@ -170,6 +174,7 @@ def submit_quiz(request, quiz_id):
             'error': str(e)
         }, status=400)
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def ai_assistant(request):
     try:
@@ -193,7 +198,9 @@ def ai_assistant(request):
         User Question: {message}
         '''
         
-        response_text = generate_with_ollama(prompt)
+        response_json = call_ollama(prompt)
+        response_text = response_json.get('response', 'Sorry, I could not generate a response.')
+
 
         return JsonResponse({
             'response': response_text,
@@ -225,3 +232,49 @@ def mark_lesson_complete(request, lesson_id):
     progress.completed = True
     progress.save()
     return redirect('tutor:lesson_detail', course_id=lesson.module.course.id, module_id=lesson.module.id, lesson_id=lesson.id)
+
+# --- New Views for Simplify and Example ---
+
+@require_http_methods(["GET"])
+def simplify_content(request, lesson_id):
+    try:
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+        
+        if not lesson.content:
+            return JsonResponse({'content': 'Cannot simplify an empty lesson.'})
+
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        prompt = f"""
+        Simplify the following lesson content for a beginner. Focus on core concepts, use simple language, and keep it concise.
+        Lesson Title: {lesson.title}
+        Lesson Content:
+        {lesson.content}
+        """
+        response = model.generate_content(prompt)
+        simplified_text = response.text.strip()
+        
+        return JsonResponse({'content': simplified_text})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["GET"])
+def generate_example(request, lesson_id):
+    try:
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+        
+        if not lesson.content:
+             return JsonResponse({'content': 'Cannot generate an example for an empty lesson.'})
+
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        prompt = f"""
+        Provide a clear and practical example for the following lesson content. Focus on demonstrating the main concepts in a concise way.
+        Lesson Title: {lesson.title}
+        Lesson Content:
+        {lesson.content}
+        """
+        response = model.generate_content(prompt)
+        example_text = response.text.strip()
+        
+        return JsonResponse({'content': example_text})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
