@@ -8,7 +8,6 @@ from django.db import transaction
 from .models import Course, Module, Lesson, Quiz, Question, Choice
 
 # --- OLLAMA AI Configuration ---
-OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "phi3:mini" # Changed from phi3:3.8b-mini-4k-instruct-q4_0 for faster inference
 
 def call_ollama(prompt):
@@ -18,7 +17,7 @@ def call_ollama(prompt):
     """
     print(f"Sending prompt to Ollama: {prompt}")
     try:
-        response = requests.post(OLLAMA_URL, json={
+        response = requests.post(settings.OLLAMA_URL, json={
             "model": OLLAMA_MODEL,
             "prompt": f"{prompt}\n\nPlease ensure the output is only a single, valid JSON object as requested, with no additional text or markdown.",
             "stream": False,

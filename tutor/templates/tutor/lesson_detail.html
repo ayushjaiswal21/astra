@@ -28,14 +28,22 @@
             <div id="tab-content-panel" class="prose max-w-none tab-panel">
                 {{ lesson.content|convert_markdown|safe }}
             </div>
-            <div id="tab-simplify-panel" class="prose max-w-none tab-panel hidden">
-                <p>Simplified content is being generated...</p>
+            <div id="tab-simplify-panel" class="prose max-w-none tab-panel hidden" {% if lesson.simplified_content %}data-loaded="true"{% endif %}>
+                {% if lesson.simplified_content %}
+                    {{ lesson.simplified_content|convert_markdown|safe }}
+                {% else %}
+                    <p>Simplified content is being generated...</p>
+                {% endif %}
             </div>
             <div id="tab-quiz-panel" class="prose max-w-none tab-panel hidden">
                 <p>No quiz available for this lesson.</p>
             </div>
-            <div id="tab-example-panel" class="prose max-w-none tab-panel hidden">
-                <p>A relevant example is being generated...</p>
+            <div id="tab-example-panel" class="prose max-w-none tab-panel hidden" {% if lesson.example_content %}data-loaded="true"{% endif %}>
+                {% if lesson.example_content %}
+                    {{ lesson.example_content|convert_markdown|safe }}
+                {% else %}
+                    <p>A relevant example is being generated...</p>
+                {% endif %}
             </div>
         </div>
         

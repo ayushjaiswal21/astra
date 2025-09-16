@@ -200,7 +200,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFTTOKEN': '{{ csrf_token }}',
+                    'X-CSRFToken': '{{ csrf_token }}',
                 },
                 body: JSON.stringify({
                     answers: answers
@@ -227,7 +227,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFTTOKEN': '{{ csrf_token }}',
+                            'X-CSRFToken': '{{ csrf_token }}',
                         },
                         body: JSON.stringify({
                             completed: true

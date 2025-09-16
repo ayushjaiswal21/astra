@@ -1,6 +1,5 @@
 import json
 import time
-import random
 from channels.generic.websocket import AsyncWebsocketConsumer, WebsocketConsumer
 from channels.db import database_sync_to_async
 from asgiref.sync import async_to_sync
@@ -233,9 +232,6 @@ class TutorChatConsumer(AsyncWebsocketConsumer):
         message = text_data_json['message']
         context = text_data_json.get('context', '')
         
-        # Simulate AI thinking time
-        await asyncio.sleep(0.5)
-        
         # Generate AI response
         ai_response = await self.generate_ai_response(message, context)
         
@@ -247,7 +243,7 @@ class TutorChatConsumer(AsyncWebsocketConsumer):
         }))
     
     async def generate_ai_response(self, message, context):
-        """Generate a simulated AI response based on the message and context."""
+        '''Generate a simulated AI response based on the message and context.'''
         # In a real implementation, this would call the Gemini API
         ai_responses = [
             f"That's an interesting question about '{message[:20]}...'. Let me explain it in a different way.",
@@ -275,8 +271,6 @@ class TutorChatConsumer(AsyncWebsocketConsumer):
         ]
         
         # Combine the response parts
-        response = random.choice(ai_responses)
-        if random.random() > 0.3:  # 70% chance to add an educational phrase
-            response += " " + random.choice(educational_phrases)
+        response = ai_responses[0]
         
         return response

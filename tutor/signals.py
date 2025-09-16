@@ -56,7 +56,7 @@ def handle_quiz_attempt(sender, instance, created, **kwargs):
     if created and instance.score >= 70:  # If passing score
         # Mark the lesson as completed
         UserProgress.objects.update_or_create(
-            user=instance.user,
+            session_key=instance.session_key,
             lesson=instance.quiz.lesson,
             defaults={'completed': True}
         )

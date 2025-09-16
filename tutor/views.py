@@ -240,6 +240,9 @@ def simplify_content(request, lesson_id):
     try:
         lesson = get_object_or_404(Lesson, id=lesson_id)
         
+        if lesson.simplified_content:
+            return JsonResponse({'content': lesson.simplified_content})
+        
         if not lesson.content:
             return JsonResponse({'content': 'Cannot simplify an empty lesson.'})
 
@@ -253,6 +256,9 @@ def simplify_content(request, lesson_id):
         response = model.generate_content(prompt)
         simplified_text = response.text.strip()
         
+        lesson.simplified_content = simplified_text
+        lesson.save()
+        
         return JsonResponse({'content': simplified_text})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -261,6 +267,9 @@ def simplify_content(request, lesson_id):
 def generate_example(request, lesson_id):
     try:
         lesson = get_object_or_404(Lesson, id=lesson_id)
+        
+        if lesson.example_content:
+            return JsonResponse({'content': lesson.example_content})
         
         if not lesson.content:
              return JsonResponse({'content': 'Cannot generate an example for an empty lesson.'})
@@ -274,6 +283,9 @@ def generate_example(request, lesson_id):
         """
         response = model.generate_content(prompt)
         example_text = response.text.strip()
+        
+        lesson.example_content = example_text
+        lesson.save()
         
         return JsonResponse({'content': example_text})
     except Exception as e:
