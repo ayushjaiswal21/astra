@@ -3,6 +3,40 @@
 
 {% block title %}{{ lesson.title }} - AstraLearn{% endblock %}
 
+{% block sidebar_content %}
+<div class="flex items-center mb-4">
+    <div class="p-2 bg-pink-100 rounded-md">
+        <i class="fas fa-lightbulb text-pink-600"></i>
+    </div>
+    <h2 class="ml-3 font-bold text-lg">{{ course.title }}</h2>
+</div>
+<nav>
+    <ul>
+        {% for m in course.modules.all %}
+        <li class="mt-4">
+            <p class="font-bold text-gray-800 {% if m.id in module_progress %}text-green-500{% endif %}">
+                {% if m.id in module_progress %}
+                    <i class="fas fa-check-circle mr-2"></i>
+                {% else %}
+                    <i class="far fa-circle mr-2"></i>
+                {% endif %}
+                {{ m.order|add:1 }}. {{ m.title }}
+            </p>
+            <ul class="mt-2 ml-4 border-l border-gray-200">
+                {% for lsn in m.lessons.all %}
+                <li>
+                    <a href="{% url 'tutor:lesson_detail' course.id m.id lsn.id %}" class="block py-2 px-4 text-sm rounded-md {% if lsn.id == lesson.id %} bg-blue-100 text-blue-700 font-bold {% else %} text-gray-600 hover:bg-gray-100 {% endif %}">
+                        {{ lsn.title }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endblock %}
+
 {% block content %}
 <div class="flex h-screen">
     <div class="flex-1 p-8 overflow-y-auto">
@@ -73,34 +107,7 @@
         </div>
     </div>
 
-    <div class="w-80 bg-white border-l border-gray-200 p-6 overflow-y-auto">
-        <div class="flex items-center">
-            <div class="p-2 bg-pink-100 rounded-md">
-                <i class="fas fa-lightbulb text-pink-600"></i>
-            </div>
-            <h2 class="ml-3 font-bold">{{ course.title }}</h2>
-        </div>
-        <nav class="mt-6">
-            <ul>
-                {% for module in course.modules.all %}
-                <li class="mt-4">
-                    <p class="font-bold text-gray-800">{{ module.order|add:1 }}. {{ module.title }}</p>
-                    <ul class="mt-2 ml-4 border-l border-gray-200">
-                        {% for lsn in module.lessons.all %}
-                        <li>
-                            <a href="{% url 'tutor:lesson_detail' course.id module.id lsn.id %}" class="block py-2 px-4 text-sm rounded-md {% if lsn.id == lesson.id %} bg-blue-100 text-blue-700 font-bold {% else %} text-gray-600 hover:bg-gray-100 {% endif %}">
-                                {{ lsn.title }}
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </li>
-                {% endfor %}
-            </ul>
-        </nav>
-    </div>
-    
-    <button id="ai-assistant-btn" class="absolute bottom-8 right-80 mr-4 bg-purple-600 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center hover:bg-purple-700">
+    <button id="ai-assistant-btn" class="absolute bottom-8 right-8 mr-4 bg-purple-600 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center hover:bg-purple-700">
         <i class="fas fa-shield-alt text-2xl"></i>
     </button>
 </div>

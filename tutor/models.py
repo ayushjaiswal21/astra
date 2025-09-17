@@ -91,3 +91,11 @@ class UserQuizAttempt(models.Model):
     
     def __str__(self):
         return f"{self.session_key}'s attempt on {self.quiz.title}"
+
+class ModuleProgress(models.Model):
+    session_key = models.CharField(max_length=40, db_index=True)
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='user_progress')
+    completed = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ('session_key', 'module')

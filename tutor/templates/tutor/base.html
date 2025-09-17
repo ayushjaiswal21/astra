@@ -61,9 +61,12 @@
     <div class="flex h-full">
         <div class="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
             <div class="p-4 mb-4">
-                <h1 class="text-3xl font-bold text-blue-600">AstraLearn</h1>
+                <a href="{% url 'tutor:course_list' %}">
+                    <h1 class="text-3xl font-bold text-blue-600">AstraLearn</h1>
+                </a>
             </div>
             <div class="border rounded-lg p-2">
+                {% block sidebar_content %}
                 <nav class="space-y-1">
                     <a href="{% url 'tutor:course_list' %}" class="sidebar-link {% if request.resolver_match.url_name == 'course_list' or request.resolver_match.url_name == 'course_detail' %}active{% endif %}">
                         Current Course
@@ -72,6 +75,7 @@
                         Create Course
                     </a>
                 </nav>
+                {% endblock %}
             </div>
         </div>
 

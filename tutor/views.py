@@ -8,7 +8,7 @@ from django.db import transaction
 from django.conf import settings
 import google.generativeai as genai
 
-from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt
+from .models import Course, Module, Lesson, Quiz, Question, Choice, UserProgress, UserQuizAttempt, ModuleProgress
 
 from .tasks import generate_lesson_content, generate_modules_and_lessons
 
@@ -65,6 +65,10 @@ def lesson_detail(request, course_id, module_id, lesson_id):
         Lesson, id=lesson_id, module_id=module_id, module__course_id=course_id
     )
 
+    if not request.session.session_key:
+        request.session.create()
+    session_key = request.session.session_key
+
     if not lesson.content:
         lesson.content = '''
         <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md my-5">
@@ -83,13 +87,18 @@ def lesson_detail(request, course_id, module_id, lesson_id):
         '''
 
     progress, created = UserProgress.objects.get_or_create(
-        session_key=request.session.session_key or 'anonymous',
+        session_key=session_key,
         lesson=lesson
     )
     all_lessons = list(Lesson.objects.filter(module__course_id=course_id).order_by('module__order', 'order'))
     current_index = all_lessons.index(lesson)
     next_lesson = all_lessons[current_index + 1] if current_index + 1 < len(all_lessons) else None
     prev_lesson = all_lessons[current_index - 1] if current_index > 0 else None
+
+    module_progress = ModuleProgress.objects.filter(
+        session_key=session_key,
+        module__course_id=course_id
+    ).values_list('module_id', flat=True)
     
     return render(request, 'tutor/lesson_detail.html', {
         'course': lesson.module.course,
@@ -98,7 +107,8 @@ def lesson_detail(request, course_id, module_id, lesson_id):
         'progress': progress,
         'next_lesson': next_lesson,
         'prev_lesson': prev_lesson,
-        'has_quiz': hasattr(lesson, 'quiz')
+        'has_quiz': hasattr(lesson, 'quiz'),
+        'module_progress': list(module_progress)
     })
 
 def quiz_detail(request, quiz_id):
@@ -225,13 +235,45 @@ def delete_course(request, course_id):
 @require_http_methods(["POST"])
 def mark_lesson_complete(request, lesson_id):
     lesson = get_object_or_404(Lesson, id=lesson_id)
+    
+    if not request.session.session_key:
+        request.session.create()
+    session_key = request.session.session_key
+
+    # Mark the current lesson as complete
     progress, created = UserProgress.objects.get_or_create(
-        session_key=request.session.session_key or 'anonymous',
+        session_key=session_key,
         lesson=lesson
     )
     progress.completed = True
     progress.save()
-    return redirect('tutor:lesson_detail', course_id=lesson.module.course.id, module_id=lesson.module.id, lesson_id=lesson.id)
+    
+    # Check if this completes the module
+    module = lesson.module
+    all_lessons_in_module = module.lessons.all()
+    completed_lessons_count = UserProgress.objects.filter(
+        session_key=session_key,
+        lesson__in=all_lessons_in_module,
+        completed=True
+    ).count()
+    
+    if completed_lessons_count >= all_lessons_in_module.count():
+        ModuleProgress.objects.update_or_create(
+            session_key=session_key,
+            module=module,
+            defaults={'completed': True}
+        )
+
+    # Determine the next lesson
+    all_course_lessons = list(Lesson.objects.filter(module__course_id=lesson.module.course.id).order_by('module__order', 'order'))
+    current_index = all_course_lessons.index(lesson)
+    next_lesson = all_course_lessons[current_index + 1] if current_index + 1 < len(all_course_lessons) else None
+
+    if next_lesson:
+        return redirect('tutor:lesson_detail', course_id=next_lesson.module.course.id, module_id=next_lesson.module.id, lesson_id=next_lesson.id)
+    else:
+        # If there are no more lessons, redirect to the course detail page
+        return redirect('tutor:course_detail', course_id=lesson.module.course.id)
 
 # --- New Views for Simplify and Example ---
 
